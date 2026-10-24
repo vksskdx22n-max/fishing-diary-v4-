@@ -357,7 +357,7 @@ if(localStorage.getItem('fd_pwd_ok')===_PWD_HASH){
     <div>
       <div class="header-title">🎣 Fishing Diary</div>
       <div style="font-size:16px;font-weight:600;color:#fff;opacity:.9;margin-top:4px;text-shadow:0 1px 3px rgba(0,0,0,.4);padding-left:1.6em">Laguna di Venezia</div>
-      <div style="font-size:12px;color:#fff;opacity:.85;margin-top:4px;padding-left:1.6em;letter-spacing:.05em;text-shadow:0 1px 3px rgba(0,0,0,.4)">vers. 4.3.83 · <a href="https://docs.google.com/forms/d/e/1FAIpQLSdixNuJt0e-KEVQgPTVMowOy4RxPMTRqrkozU_R-AoeFHy4zA/viewform?usp=header" target="_blank" style="color:#fff;opacity:.9;text-decoration:underline">✉️ Segnala un problema</a></div>
+      <div style="font-size:12px;color:#fff;opacity:.85;margin-top:4px;padding-left:1.6em;letter-spacing:.05em;text-shadow:0 1px 3px rgba(0,0,0,.4)">vers. 4.3.84 · <a href="https://docs.google.com/forms/d/e/1FAIpQLSdixNuJt0e-KEVQgPTVMowOy4RxPMTRqrkozU_R-AoeFHy4zA/viewform?usp=header" target="_blank" style="color:#fff;opacity:.9;text-decoration:underline">✉️ Segnala un problema</a></div>
       <div class="header-info" style="margin-top:8px">I dati vengono salvati nel browser. <b>Esporta</b> regolarmente in JSON/CSV per non perderli.</div>
     </div>
     <div class="header-pescatore">
@@ -2542,7 +2542,7 @@ function esportaJSON(){
   var nome='diario_pesca_'+dev+'_'+gg+'-'+mm+'-'+aaaa+'.json';
   var payload={
     _format:'fd-v2',
-    _versione:'4.3.83',
+    _versione:'4.3.84',
     uscite:uscite,
     tracciati:typeof tracciati!=='undefined'?tracciati:[],
     spots:typeof spots!=='undefined'?spots:[]
@@ -3916,7 +3916,7 @@ function catBatStoricoHtml(t){
 }
 function catBatHtml(sc){
   var b=sc.batimetria;
-  var cn=sc.canale?'<div style="font-size:11px">\u3030 '+canEtichetta(sc.canale)+(sc.canale.distanza_m!=null?' \u00b7 '+sc.canale.distanza_m+' m dall\'asse':'')+'</div>':''; // 4.3.83
+  var cn=sc.canale?'<div style="font-size:11px">\u3030 '+canEtichetta(sc.canale)+'</div>':''; // 4.3.84 — solo classe e nome
   if(!b)return cn;
   return cn+'<div style="font-size:11px">⚓ Profondità '+batFmt(b.prof_m)+
     (b.bordo?' · bordo ('+batFmt(b.min_m)+'–'+batFmt(b.max_m)+')':'')+
