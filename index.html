@@ -357,7 +357,7 @@ if(localStorage.getItem('fd_pwd_ok')===_PWD_HASH){
     <div>
       <div class="header-title">🎣 Fishing Diary</div>
       <div style="font-size:16px;font-weight:600;color:#fff;opacity:.9;margin-top:4px;text-shadow:0 1px 3px rgba(0,0,0,.4);padding-left:1.6em">Laguna di Venezia</div>
-      <div style="font-size:12px;color:#fff;opacity:.85;margin-top:4px;padding-left:1.6em;letter-spacing:.05em;text-shadow:0 1px 3px rgba(0,0,0,.4)">vers. 4.3.82 · <a href="https://docs.google.com/forms/d/e/1FAIpQLSdixNuJt0e-KEVQgPTVMowOy4RxPMTRqrkozU_R-AoeFHy4zA/viewform?usp=header" target="_blank" style="color:#fff;opacity:.9;text-decoration:underline">✉️ Segnala un problema</a></div>
+      <div style="font-size:12px;color:#fff;opacity:.85;margin-top:4px;padding-left:1.6em;letter-spacing:.05em;text-shadow:0 1px 3px rgba(0,0,0,.4)">vers. 4.3.83 · <a href="https://docs.google.com/forms/d/e/1FAIpQLSdixNuJt0e-KEVQgPTVMowOy4RxPMTRqrkozU_R-AoeFHy4zA/viewform?usp=header" target="_blank" style="color:#fff;opacity:.9;text-decoration:underline">✉️ Segnala un problema</a></div>
       <div class="header-info" style="margin-top:8px">I dati vengono salvati nel browser. <b>Esporta</b> regolarmente in JSON/CSV per non perderli.</div>
     </div>
     <div class="header-pescatore">
@@ -2542,7 +2542,7 @@ function esportaJSON(){
   var nome='diario_pesca_'+dev+'_'+gg+'-'+mm+'-'+aaaa+'.json';
   var payload={
     _format:'fd-v2',
-    _versione:'4.3.82',
+    _versione:'4.3.83',
     uscite:uscite,
     tracciati:typeof tracciati!=='undefined'?tracciati:[],
     spots:typeof spots!=='undefined'?spots:[]
@@ -3023,7 +3023,8 @@ function trkAggiornaUI(){
     if(bat.stato==='assente')batCarica();
     var fnd=batFondaleLive();
     var cnl=canVicinoLive(); // 4.3.81
-    if(fnd||cnl)testoEt+='\n'+[fnd?'⚓ '+batFmt(fnd.prof_m)+(fnd.bordo?' · bordo':''):'',cnl?cnl.nome:''].filter(Boolean).join(' · ');
+    var cnlTxt=cnl?canEtichetta(cnl).replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"'):''; // 4.3.83
+    if(fnd||cnlTxt)testoEt+='\n'+[fnd?'⚓ '+batFmt(fnd.prof_m):'',cnlTxt].filter(Boolean).join(' · ');
     et.textContent=testoEt;
     et.classList.add('visible');
     if(fabCat)fabCat.classList.add('mostrato');
@@ -3656,6 +3657,49 @@ var CAN_SEG=(function(){var S=[];
   OSM_CANALI.features.forEach(function(f){var n=f.properties.n,g=f.geometry,L=g.type==='LineString'?[g.coordinates]:g.coordinates;
     L.forEach(function(l){for(var i=1;i<l.length;i++)S.push([l[i-1][0],l[i-1][1],l[i][0],l[i][1],n]);});});
   return S;})();
+// 4.3.83 — canVicinoPt: come canVicino + punto dell'asse piu vicino (= fd_canali.Canali.vicino)
+function canVicinoPt(lat,lon,maxM){
+  if(lat==null||lon==null)return null;
+  maxM=maxM||CAN_MAX_M;
+  var kx=111320*Math.cos(lat*Math.PI/180),ky=111132,best=null,bd=maxM,bp=null;
+  for(var k=0;k<CAN_SEG.length;k++){
+    var s=CAN_SEG[k],x1=s[0],y1=s[1],x2=s[2],y2=s[3];
+    if(Math.abs((x1-lon)*kx)>maxM+3000&&Math.abs((x2-lon)*kx)>maxM+3000)continue;
+    var ax=(x1-lon)*kx,ay=(y1-lat)*ky,bx=(x2-lon)*kx,by=(y2-lat)*ky,dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;
+    var t=l2?-(ax*dx+ay*dy)/l2:0;t=Math.max(0,Math.min(1,t));
+    var px=ax+dx*t,py=ay+dy*t;
+    var d=Math.hypot(px,py);
+    if(d<bd){bd=d;best=s[4];bp=[lat+py/ky,lon+px/kx];}
+  }
+  return best?{nome:best,d:bd,lat:bp[0],lon:bp[1]}:null;
+}
+// 4.3.83 — posizione rispetto al canale (= fd_canali.py 1.0): in_canale | bordo | barena_presso | presso | fuori_canale
+var CAN_SOGLIA_ASSE_M=3.0, CAN_R_IN=0.75, CAN_R_BORDO=0.40;
+function canClassifica(prof,profAsse,bordo){
+  if(prof==null||profAsse==null||profAsse<CAN_SOGLIA_ASSE_M)return 'presso';
+  var r=prof/profAsse;
+  if(r>=CAN_R_IN)return 'in_canale';
+  if(r>=CAN_R_BORDO||bordo)return 'bordo';
+  return 'barena_presso';
+}
+// {nome,distanza_m,prof_asse_m,posizione}; prof/bordo dal blocco batimetria (null se griglia non caricata)
+function canCanale(lat,lon,prof,bordo){
+  var v=canVicinoPt(lat,lon);
+  if(!v)return {nome:null,distanza_m:null,prof_asse_m:null,posizione:'fuori_canale'};
+  var ra=batProf(v.lat,v.lon,null);
+  var pa=ra?ra.prof_m:null;
+  return {nome:v.nome,distanza_m:Math.round(v.d),prof_asse_m:pa,posizione:canClassifica(prof,pa,!!bordo)};
+}
+function canCanaleCattura(sc){
+  var b=sc.batimetria||{};
+  return canCanale(sc.lat,sc.lon,b.prof_m!=null?b.prof_m:null,!!b.bordo);
+}
+function canEtichetta(c){
+  if(!c)return '';
+  if(!c.posizione)return c.nome?escCan(c.nome):''; // catture 4.3.81-4.3.82 senza posizione
+  var n=escCan(c.nome||'');
+  return {in_canale:'in '+n,bordo:'bordo '+n,barena_presso:'barena presso '+n,presso:'presso '+n,fuori_canale:'barena / fuori canale'}[c.posizione]||n;
+}
 // Ritorna {nome,distanza_m} oppure null
 function canVicino(lat,lon,maxM){
   if(lat==null||lon==null)return null;
@@ -3676,7 +3720,11 @@ function canVicinoLive(){
   var p=trk.ultimoPuntoSalvato;
   if(!p)return null;
   var k=p.lat+','+p.lon;
-  if(canCache.key!==k){canCache.key=k;canCache.val=canVicino(p.lat,p.lon);}
+  if(canCache.key!==k||canCache.bat!==bat.stato){
+    canCache.key=k;canCache.bat=bat.stato;
+    var f=batFondaleLive(); // 4.3.83 — posizione live con la stessa regola delle catture
+    canCache.val=canCanale(p.lat,p.lon,f?f.prof_m:null,!!(f&&f.bordo));
+  }
   return canCache.val;
 }
 // Layer mappa: linee sottili + nome a meta di ogni tratto (visibile da zoom 13)
@@ -3837,11 +3885,10 @@ function catCalcolaBatimetria(sc,onDone){
   function applica(){
     if(sc.batimetria==null){
       var b=batProf(sc.lat,sc.lon,sc.accuracy);
-      if(!b)return false;
-      b.battente_m=null;
-      sc.batimetria=b;
+      if(b){b.battente_m=null;sc.batimetria=b;}
     }
     catAggiornaBattente(sc);
+    sc.canale=canCanaleCattura(sc); // 4.3.83 — posizione con profondita alla cattura e sull'asse
     return true;
   }
   if(bat.stato==='pronto')return applica();
@@ -3864,12 +3911,12 @@ function catBatStoricoHtml(t){
       return '<div style="font-size:12px;margin-top:3px">'+String(o.getHours()).padStart(2,'0')+':'+String(o.getMinutes()).padStart(2,'0')+
         (b?' \u00b7 '+batFmt(b.prof_m)+(b.bordo?' \u00b7 bordo ('+batFmt(b.min_m)+'\u2013'+batFmt(b.max_m)+')':'')+
         (b.battente_m!=null?' \u00b7 battente '+batFmt(b.battente_m):''):'')+
-        (x.canale?' \u00b7 '+escCan(x.canale.nome):'')+'</div>';
+        (x.canale?' \u00b7 '+canEtichetta(x.canale):'')+'</div>';
     }).join('');
 }
 function catBatHtml(sc){
   var b=sc.batimetria;
-  var cn=sc.canale?'<div style="font-size:11px">\u3030 '+escCan(sc.canale.nome)+' \u00b7 '+sc.canale.distanza_m+' m</div>':''; // 4.3.81
+  var cn=sc.canale?'<div style="font-size:11px">\u3030 '+canEtichetta(sc.canale)+(sc.canale.distanza_m!=null?' \u00b7 '+sc.canale.distanza_m+' m dall\'asse':'')+'</div>':''; // 4.3.83
   if(!b)return cn;
   return cn+'<div style="font-size:11px">⚓ Profondità '+batFmt(b.prof_m)+
     (b.bordo?' · bordo ('+batFmt(b.min_m)+'–'+batFmt(b.max_m)+')':'')+
@@ -3904,7 +3951,7 @@ function catSalva(){
     accuracy:(typeof last.acc==='number'?last.acc:null), // 4.3.75 — accuracy del fix GPS persistita
     meteo_pending:true  // 4.3.64 — sarà popolato meteo_at_capture al completamento del fetch
   };
-  nuovaCattura.canale=canVicino(last.lat,last.lon); // 4.3.81 — {nome,distanza_m} o null
+  nuovaCattura.canale=canCanaleCattura(nuovaCattura); // 4.3.83 — {nome,distanza_m,prof_asse_m,posizione}; ricalcolato con la batimetria
   trk.spot_catture.push(nuovaCattura);
   // 4.3.80 — profondita nominale nel punto (stessa regola di fd_batimetria); null se griglia assente
   var trackIdBat=trk.idCorrente;
@@ -3916,7 +3963,7 @@ function catSalva(){
   if('vibrate' in navigator){try{navigator.vibrate(50);}catch(e){}}
   // Backup immediato (così anche se crash non si perde la cattura segnata)
   trkBackupInCorso();
-  var dettCat=[nuovaCattura.batimetria?batFmt(nuovaCattura.batimetria.prof_m):'',nuovaCattura.canale?nuovaCattura.canale.nome:''].filter(Boolean).join(' · ');
+  var dettCat=[nuovaCattura.batimetria?batFmt(nuovaCattura.batimetria.prof_m):'',nuovaCattura.canale?canEtichetta(nuovaCattura.canale).replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"'):''].filter(Boolean).join(' · ');
   catToast('🪝 Cattura segnata'+(dettCat?'\n'+dettCat:''));
   // 4.3.64 — fetch meteo asincrono (non blocca il salvataggio).
   // Se fallisce entro CPSM_FETCH_TIMEOUT_MS (3s) il record resta con meteo_pending=true.
